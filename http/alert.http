@@ -1,0 +1,21 @@
+### 对话
+POST http://127.0.0.1:8001/v1/chat/completions
+Authorization: Bearer ops-agent-local
+Content-Type: application/json
+
+{
+  "model": "ops-agent",
+  "messages": [
+    {
+      "role": "user",
+      "content": "现在几点了"
+    }
+  ],
+  "stream": false
+}
+
+
+
+### 模型列表
+GET http://127.0.0.1:8001/v1/models
+Authorization: Bearer ops-agent-local
