@@ -1,3 +1,11 @@
+### health
+GET http://127.0.0.1:8001/health
+
+### 模型列表
+GET http://127.0.0.1:8001/v1/models
+Authorization: Bearer ops-agent-local
+
+
 ### 对话
 POST http://127.0.0.1:8001/v1/chat/completions
 Authorization: Bearer ops-agent-local
@@ -13,9 +21,3 @@ Content-Type: application/json
   ],
   "stream": false
 }
-
-
-
-### 模型列表
-GET http://127.0.0.1:8001/v1/models
-Authorization: Bearer ops-agent-local
