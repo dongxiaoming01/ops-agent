@@ -1,64 +1,57 @@
-
-from agentscope.agent import ReActAgent
-from agentscope.formatter import DashScopeChatFormatter
-from agentscope.memory import InMemoryMemory
+from agentscope.agent import Agent, InjectionConfig
+from agentscope.credential import DashScopeCredential
 from agentscope.model import DashScopeChatModel
-from agentscope.tool import Toolkit
+from agentscope.permission import PermissionDecision, PermissionBehavior
+from agentscope.tool import Toolkit, FunctionTool
 
-from config import DASHSCOPE_API_KEY, MODEL_NAME
+from conf.model import DASHSCOPE_API_KEY, MODEL_ID
+from tools import get_alert_by_id, query_disk_history
 
-from skills.alert_analysis.skill import analyze_alert
-from skills.fault_diagnosis.skill import diagnose_fault
-from skills.duty_handover.skill import generate_handover
+system_prompt="""
+你是智能运维助手，负责生产环境告警分析与故障定位；
+回答应准确、清晰、简洁；
+没有查询到实际监控数据时，不得编造监控结果；
+涉及生产环境变更或执行操作时，必须先获得用户确认；
+请使用用户当前对话的语言回答。
+"""
 
+# 只读查询工具：允许 Agent 自主调用
+read_only_permission = PermissionDecision(
+    behavior=PermissionBehavior.ALLOW,
+    message="只读查询工具，允许自动执行。",
+)
 
-def create_ops_agent() -> ReActAgent:
+tools = [
+    FunctionTool(
+        get_alert_by_id,
+        is_read_only=True,
+        permission=read_only_permission,
+    ),
+    FunctionTool(
+        query_disk_history,
+        is_read_only=True,
+        permission=read_only_permission,
+    ),
+]
+
+def create_agent():
     if not DASHSCOPE_API_KEY:
-        raise RuntimeError(
-            "请在 .env 中配置 DASHSCOPE_API_KEY"
-        )
+        raise RuntimeError("未配置 DASHSCOPE_API_KEY，请检查项目根目录 .env")
 
-    toolkit = Toolkit()
-
-    # 注册业务 Skill
-    toolkit.register_tool_function(analyze_alert)
-    toolkit.register_tool_function(diagnose_fault)
-    toolkit.register_tool_function(generate_handover)
-
-    model = DashScopeChatModel(
-        model_name=MODEL_NAME,
-        api_key=DASHSCOPE_API_KEY,
-        stream=False,
+    return Agent(
+        name=MODEL_ID,
+        system_prompt=system_prompt,
+        model=DashScopeChatModel(
+            credential=DashScopeCredential(
+                api_key=DASHSCOPE_API_KEY
+            ),
+            model="qwen-plus",
+        ),
+        toolkit=Toolkit(tools=tools),
+        injection_config=InjectionConfig(
+            timezone="Asia/Shanghai",  # 注入该时区的时间
+        ),
     )
 
-    agent = ReActAgent(
-        name="ops_agent",
-        sys_prompt="""
-你是智能运维 Agent，负责协助运维人员分析告警、
-定位故障和生成值班交班摘要。
 
-你可以使用以下业务能力：
-1. analyze_alert：告警分析，输入告警ID。
-2. diagnose_fault：故障定位，输入告警ID和故障现象。
-3. generate_handover：值班交班，汇总近期告警。
-
-工作原则：
-- 根据用户意图自主选择合适的 Skill。
-- 必须基于查询结果分析，不得编造数据。
-- 告警分析要说明风险等级、判断依据、可能原因和处置建议。
-- 故障定位要区分已知事实、可能原因和后续排查步骤。
-- 值班交班要突出未恢复告警、处理进度和待办事项。
-- 不得将模拟数据描述为真实生产数据。
-- 不得擅自执行生产操作。
-- 对于扩容、重启、变更等操作，只能提供建议或准备草稿。
-""",
-        model=model,
-        formatter=DashScopeChatFormatter(),
-        toolkit=toolkit,
-        memory=InMemoryMemory(),
-    )
-
-    return agent
-
-
-ops_agent = create_ops_agent()
+ops_agent = create_agent()

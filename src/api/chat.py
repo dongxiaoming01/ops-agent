@@ -8,12 +8,9 @@ import uuid
 from agentscope.message import Msg
 from flask import jsonify, request, Response
 from flask.views import MethodView
-from agentscope.agent import Agent
-from agentscope.credential import DashScopeCredential
-from agentscope.model import DashScopeChatModel
-from agentscope.tool import Toolkit
 
-from conf.model import API_KEY, MODEL_ID, DASHSCOPE_API_KEY
+from agent.ops_agent import ops_agent
+from conf.model import API_KEY, MODEL_ID
 
 logger = logging.getLogger(__name__)
 
@@ -23,29 +20,6 @@ def check_api_key():
             "error": {"message": "Invalid API key"}
         }), 401
     return None
-
-def create_agent():
-    if not DASHSCOPE_API_KEY:
-        raise RuntimeError("未配置 DASHSCOPE_API_KEY，请检查项目根目录 .env")
-
-    return Agent(
-        name="ops_agent",
-        system_prompt=(
-            "你是智能运维助手，负责生产环境告警分析与故障定位。"
-            "回答应准确、清晰、简洁。"
-            "没有查询到实际监控数据时，不得编造监控结果。"
-            "涉及生产环境变更或执行操作时，必须先获得用户确认。"
-            "请使用用户当前对话的语言回答。"
-            "全局默认为东八区，描述的时候直接使用东八区，不。"
-        ),
-        model=DashScopeChatModel(
-            credential=DashScopeCredential(
-                api_key="sk-ws-H.PDHPXRX.n4X6.MEUCIQDWyr5hyQbnzrpou_UDLkNzSqLdg_mvogL5kTdi9vSrvAIgfnx_hjcF1pegfPBoMcUCuj2rsHiqNqfLIeh80Hrig34"
-            ),
-            model="qwen-plus",
-        ),
-        toolkit=Toolkit(),
-    )
 
 
 # ============================================================
@@ -316,7 +290,7 @@ class ChatAPI(MethodView):
         )
 
         try:
-            agent = create_agent()
+            agent = ops_agent
             result = asyncio.run(agent.reply(message))
             answer = extract_text(result)
 

@@ -1,16 +1,9 @@
-from langchain_core.tools import tool
-
-
-@tool
 def get_alert_by_id(alert_id: str) -> dict:
     """
     根据告警ID查询告警详情。
-
     参数:
-    alert_id: 告警ID
-
-    返回:
-    告警详细信息
+        alert_id: 告警ID
+    返回:告警详细信息
     """
     mock_alerts = [
         {

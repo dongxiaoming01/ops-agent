@@ -1,14 +1,8 @@
-from langchain_core.tools import tool
-
-
-@tool
 def query_disk_history(host: str, mount: str) -> dict:
     """
     查询磁盘历史使用率。
-
-    host:主机
-
-    mount:挂载点
+        host:主机
+        mount:挂载点
     """
 
     return {
