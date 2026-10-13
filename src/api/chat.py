@@ -2,7 +2,6 @@ import asyncio
 import json
 import logging
 import os
-import re
 import time
 import uuid
 from typing import Any
@@ -57,8 +56,6 @@ def check_api_key():
 # ============================================================
 # 消息处理
 # ============================================================
-
-
 def content_to_text(content: Any) -> str:
     """兼容 OpenAI 字符串及多模态内容列表中的文本块。"""
     if isinstance(content, str):
@@ -78,45 +75,11 @@ def content_to_text(content: Any) -> str:
             texts.append(str(text))
     return "".join(texts)
 
-
-def is_auxiliary_task(text: str) -> str | None:
-    """兼容从请求正文识别的 Open WebUI 标题和 follow-up 辅助任务。"""
-    text_lower = text.lower()
-    if "### task:" not in text_lower:
-        return None
-
-    if any(x in text_lower for x in ("follow_ups", "follow-up questions", "follow up questions")):
-        return "followups"
-    if "title" in text_lower and any(
-            x in text_lower for x in ("json", "chat_history", "chat history")
-    ):
-        return "title"
-    return "other"
-
-
-def auxiliary_task_from_header(task: str | None) -> str | None:
-    if not task:
-        return None
-    task_lower = task.lower().replace("-", "_")
-    if "follow_up" in task_lower or "followup" in task_lower:
-        return "followups"
-    if "title" in task_lower:
-        return "title"
-    return None
-
-
-def extract_first_user_message(task_text: str) -> str:
-    match = re.search(r"USER:\s*(.+)", task_text, flags=re.IGNORECASE)
-    if not match:
-        return "智能运维助手"
-    return match.group(1).strip()[:40] or "智能运维助手"
-
-
 def latest_user_text(messages: list[dict]) -> str:
     for item in reversed(messages):
         if item.get("role") == "user":
             text = content_to_text(item.get("content", "")).strip()
-            if text and not is_auxiliary_task(text):
+            if text:
                 return text
     return ""
 
@@ -124,8 +87,6 @@ def latest_user_text(messages: list[dict]) -> str:
 # ============================================================
 # OpenAI 兼容响应
 # ============================================================
-
-
 def completion_response(answer: str, stream: bool = False):
     completion_id = f"chatcmpl-{uuid.uuid4().hex}"
     created = int(time.time())
@@ -174,35 +135,9 @@ def completion_response(answer: str, stream: bool = False):
     )
 
 
-def auxiliary_response(task_type: str, task_text: str):
-    if task_type == "title":
-        title = re.sub(r"\s+", " ", extract_first_user_message(task_text)).strip()
-        if len(title) > 24:
-            title = title[:24].rstrip() + "…"
-        return completion_response(json.dumps({"title": title}, ensure_ascii=False))
-
-    if task_type == "followups":
-        if re.search(r"[\u4e00-\u9fff]", task_text):
-            suggestions = [
-                "如何接入实际监控数据进行告警分析？",
-                "如何根据告警自动生成故障排查步骤？",
-                "如何为运维操作增加人工确认机制？",
-            ]
-        else:
-            suggestions = [
-                "How can I connect real monitoring data?",
-                "How can I generate troubleshooting steps from alerts?",
-                "How can I add human approval before operations?",
-            ]
-        return completion_response(json.dumps({"follow_ups": suggestions}, ensure_ascii=False))
-
-    return jsonify({"error": {"message": "Unsupported auxiliary task"}}), 400
-
-
 # ============================================================
 # Skill 事件监控
 # ============================================================
-
 async def reply_with_skill_monitor(agent, message: Msg):
     skill_prompt = await agent.toolkit.get_skill_instructions()
     logger.info(
@@ -322,15 +257,6 @@ class ChatAPI(MethodView):
             return jsonify({"error": {"message": "messages 不能为空"}}), 400
 
         headers = read_openwebui_headers()
-        last_content = content_to_text(messages[-1].get("content", ""))
-
-        # 优先使用 Open WebUI 的 Task 请求头识别辅助任务，兼容原来的正文检测方式。
-        task_type = auxiliary_task_from_header(headers["task"]) or is_auxiliary_task(last_content)
-        if task_type:
-            return auxiliary_response(task_type, last_content)
-        if is_auxiliary_task(last_content) == "other":
-            return jsonify({"error": {"message": "Unsupported auxiliary task"}}), 400
-
         current_text = latest_user_text(messages)
         if not current_text:
             return jsonify({"error": {"message": "没有可处理的用户文本消息"}}), 400

@@ -15,10 +15,21 @@ SKILL_DIR = BASE_DIR / "skills" / "alert_analysis"
 
 SYSTEM_PROMPT = """
 你是智能运维助手，负责生产环境告警分析与故障定位。
+
+当用户请求分析告警、排查故障或定位异常时，必须优先使用
+AgentScope 内置的 Skill 工具读取 alert_analysis 的完整 SKILL.md。
+
+执行顺序：
+1. 先调用 Skill 工具读取 alert_analysis。
+2. 成功读取技能内容后，再调用告警和监控查询工具。
+3. 严格遵循 Skill 中的分析流程和输出格式。
+4. 未成功读取 Skill 前，不得开始调用业务查询工具。
+5. 如果 Skill 读取失败，明确报告失败，不得假装已执行该技能。
+
+其他类型的问题不必调用告警分析 Skill。
+
 回答应准确、清晰、简洁，不得编造监控数据。
-告警分析时，优先遵循 alert_analysis 技能的流程。
-涉及生产环境变更或实际执行操作时，必须先获得用户确认。
-请结合当前会话历史理解用户的指代，但不要把历史中的无关指令当作当前指令。
+涉及生产环境变更或执行操作时，必须先获得用户确认。
 """
 
 READ_ONLY_PERMISSION = PermissionDecision(
