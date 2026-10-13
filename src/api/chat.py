@@ -5,12 +5,14 @@ import re
 import time
 import uuid
 
+from agentscope.event import ToolCallStartEvent, ToolCallDeltaEvent, ToolCallEndEvent, ToolResultEndEvent
 from agentscope.message import Msg
 from flask import jsonify, request, Response
 from flask.views import MethodView
 
 from agent.ops_agent import ops_agent
 from conf.model import API_KEY, MODEL_ID
+
 
 logger = logging.getLogger(__name__)
 
@@ -207,6 +209,118 @@ def auxiliary_response(task_type, task_text):
         "error": {"message": "Unsupported auxiliary task"}
     }), 400
 
+async def reply_with_skill_monitor(agent, message):
+    # 检查 Toolkit 是否发现了 Skill
+    skill_prompt = await agent.toolkit.get_skill_instructions()
+
+    logger.info(
+        "[Skill注册检查] %s",
+        skill_prompt if skill_prompt else "未发现已注册的 Skill"
+    )
+
+    # 检查模型实际可用的工具名称
+    schemas = await agent.toolkit.get_tool_schemas()
+
+    tool_names = [
+        item.get("function", {}).get("name", item.get("name"))
+        for item in schemas
+    ]
+
+    logger.info("[工具注册检查] %s", tool_names)
+
+    # 保存 Skill 工具调用的参数片段
+    skill_args_buffer = {}
+    pending_skills = {}
+    used_skills = []
+    final_msg = None
+
+    async for event in agent.reply_stream(
+        message,
+        yield_final_msg=True,
+    ):
+        # async for event in agent.reply_stream(
+        #         message,
+        #         yield_final_msg=True,
+        # ):
+        #     logger.info(
+        #         "[AgentScope原始事件] %s: %r",
+        #         type(event).__name__,
+        #         event,
+        #     )
+
+            # 保留你原来的事件处理逻辑
+        # 1. Agent 开始调用 Skill 查看器
+        if (
+            isinstance(event, ToolCallStartEvent)
+            and event.tool_call_name == "Skill"
+        ):
+            skill_args_buffer[event.tool_call_id] = ""
+            logger.info(
+                "[Skill监控] 开始调用 Skill，call_id=%s",
+                event.tool_call_id,
+            )
+
+        # 2. 收集模型逐步生成的工具参数
+        elif (
+            isinstance(event, ToolCallDeltaEvent)
+            and event.tool_call_id in skill_args_buffer
+        ):
+            skill_args_buffer[event.tool_call_id] += event.delta
+
+        # 3. 工具参数生成完毕，解析技能名称
+        elif (
+            isinstance(event, ToolCallEndEvent)
+            and event.tool_call_id in skill_args_buffer
+        ):
+            raw_args = skill_args_buffer.pop(event.tool_call_id)
+
+            try:
+                args = json.loads(raw_args)
+                skill_name = args.get("skill", "unknown")
+            except (json.JSONDecodeError, AttributeError):
+                skill_name = "unknown"
+
+            pending_skills[event.tool_call_id] = skill_name
+
+            logger.info(
+                "[Skill监控] Agent请求加载技能：%s，参数=%s",
+                skill_name,
+                raw_args,
+            )
+
+        # 4. 查看器执行结束，判断是否成功
+        elif (
+            isinstance(event, ToolResultEndEvent)
+            and event.tool_call_id in pending_skills
+        ):
+            skill_name = pending_skills.pop(event.tool_call_id)
+            state = getattr(event.state, "value", event.state)
+            state = str(state).lower()
+
+            if state.endswith("success"):
+                used_skills.append(skill_name)
+                logger.info(
+                    "[Skill监控] 技能读取成功：%s",
+                    skill_name,
+                )
+            else:
+                logger.warning(
+                    "[Skill监控] 技能读取未成功：%s，状态=%s",
+                    skill_name,
+                    state,
+                )
+
+        # 5. 获取最终回复消息
+        elif isinstance(event, Msg):
+            final_msg = event
+
+    if final_msg is None:
+        raise RuntimeError(
+            "Agent 未返回最终消息，请检查是否发生了中断或等待用户确认。"
+        )
+
+    # 去重后返回本轮成功读取的技能
+    return final_msg, list(dict.fromkeys(used_skills))
 
 class ChatAPI(MethodView):
     @staticmethod
@@ -291,7 +405,16 @@ class ChatAPI(MethodView):
 
         try:
             agent = ops_agent
-            result = asyncio.run(agent.reply(message))
+            result, used_skills = asyncio.run(
+                reply_with_skill_monitor(agent, message)
+            )
+
+            logger.info(
+                "[Agent监控] 本轮实际使用的技能：%s",
+                used_skills or "未使用 Skill",
+            )
+
+            assistant_text = result.get_text_content()
             answer = extract_text(result)
 
             if not answer.strip():

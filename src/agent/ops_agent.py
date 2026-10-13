@@ -7,15 +7,26 @@ from agentscope.tool import Toolkit, FunctionTool
 from conf.model import DASHSCOPE_API_KEY, MODEL_ID
 from tools import get_alert_by_id, query_disk_history
 
-system_prompt="""
-你是智能运维助手，负责生产环境告警分析与故障定位；
-回答应准确、清晰、简洁；
-没有查询到实际监控数据时，不得编造监控结果；
-涉及生产环境变更或执行操作时，必须先获得用户确认；
-请使用用户当前对话的语言回答。
+system_prompt = """
+你是智能运维助手，负责生产环境告警分析与故障定位。
+
+当用户请求分析告警、排查故障或定位异常时，必须优先使用
+AgentScope 内置的 Skill 工具读取 alert_analysis 的完整 SKILL.md。
+
+执行顺序：
+1. 先调用 Skill 工具读取 alert_analysis。
+2. 成功读取技能内容后，再调用告警和监控查询工具。
+3. 严格遵循 Skill 中的分析流程和输出格式。
+4. 未成功读取 Skill 前，不得开始调用业务查询工具。
+5. 如果 Skill 读取失败，明确报告失败，不得假装已执行该技能。
+
+其他类型的问题不必调用告警分析 Skill。
+
+回答应准确、清晰、简洁，不得编造监控数据。
+涉及生产环境变更或执行操作时，必须先获得用户确认。
 """
 
-# 只读查询工具：允许 Agent 自主调用
+
 read_only_permission = PermissionDecision(
     behavior=PermissionBehavior.ALLOW,
     message="只读查询工具，允许自动执行。",
@@ -34,22 +45,30 @@ tools = [
     ),
 ]
 
+
 def create_agent():
     if not DASHSCOPE_API_KEY:
-        raise RuntimeError("未配置 DASHSCOPE_API_KEY，请检查项目根目录 .env")
+        raise RuntimeError(
+            "未配置 DASHSCOPE_API_KEY，请检查项目根目录 .env"
+        )
+
+    toolkit = Toolkit(
+        tools=tools,
+        skills_or_loaders=["./skills/alert_analysis/"],
+    )
 
     return Agent(
         name=MODEL_ID,
         system_prompt=system_prompt,
         model=DashScopeChatModel(
             credential=DashScopeCredential(
-                api_key=DASHSCOPE_API_KEY
+                api_key=DASHSCOPE_API_KEY,
             ),
             model="qwen-plus",
         ),
-        toolkit=Toolkit(tools=tools),
+        toolkit=toolkit,
         injection_config=InjectionConfig(
-            timezone="Asia/Shanghai",  # 注入该时区的时间
+            timezone="Asia/Shanghai",
         ),
     )
 
