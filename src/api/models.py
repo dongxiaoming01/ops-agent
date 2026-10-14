@@ -8,10 +8,9 @@ from conf.model import API_KEY, MODEL_ID
 
 def check_api_key():
     if request.headers.get("Authorization") != f"Bearer {API_KEY}":
-        return jsonify({
-            "error": {"message": "Invalid API key"}
-        }), 401
+        return jsonify({"error": {"message": "Invalid API key"}}), 401
     return None
+
 
 class HealthAPI(MethodView):
     @staticmethod
@@ -25,12 +24,16 @@ class ModelsAPI(MethodView):
         error = check_api_key()
         if error:
             return error
-        return jsonify({
-            "object": "list",
-            "data": [{
-                "id": MODEL_ID,
-                "object": "model",
-                "created": int(time.time()),
-                "owned_by": "local",
-            }],
-        })
+        return jsonify(
+            {
+                "object": "list",
+                "data": [
+                    {
+                        "id": MODEL_ID,
+                        "object": "model",
+                        "created": int(time.time()),
+                        "owned_by": "local",
+                    }
+                ],
+            }
+        )

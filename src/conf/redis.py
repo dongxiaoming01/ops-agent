@@ -10,6 +10,7 @@ REDIS_DB = int(conf.get("REDIS_DB"))
 REDIS_PASSWORD = conf.get("REDIS_PASSWORD") or None
 REDIS_KEY_TTL = int(conf.get("REDIS_KEY_TTL"))
 
+
 def make_storage() -> RedisStorage:
     """RedisStorage 在当前请求的事件循环内创建并关闭连接池。"""
     return RedisStorage(
@@ -19,5 +20,6 @@ def make_storage() -> RedisStorage:
         password=REDIS_PASSWORD,
         key_ttl=REDIS_KEY_TTL,
     )
+
 
 redis_storage = make_storage()

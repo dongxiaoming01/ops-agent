@@ -15,5 +15,5 @@ def query_disk_history(host: str, mount: str) -> dict:
             {"time": "14:00", "usage": 89},
             {"time": "16:00", "usage": 92},
         ],
-        "trend": "持续增长"
+        "trend": "持续增长",
     }

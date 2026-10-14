@@ -1,7 +1,7 @@
-from flask import jsonify, request, abort, send_from_directory
+from flask import abort, request, send_from_directory
 from flask.views import MethodView
 
-from tools.pdf_report import verify_download_token, REPORT_DIR
+from tools.pdf_report import REPORT_DIR, verify_download_token
 
 
 class DownloadAPI(MethodView):

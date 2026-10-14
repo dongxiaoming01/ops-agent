@@ -12,7 +12,7 @@ def get_alert_by_id(alert_id: str) -> dict:
             "mount": "/opt",
             "metric": "disk_usage",
             "value": 92,
-            "severity": "warning"
+            "severity": "warning",
         },
         {
             "alert_id": "234",
@@ -20,8 +20,8 @@ def get_alert_by_id(alert_id: str) -> dict:
             "mount": "/opt",
             "metric": "disk_usage",
             "value": 99,
-            "severity": "warning"
-        }
+            "severity": "warning",
+        },
     ]
-    alert = {alert.get('alert_id'): alert for alert in mock_alerts}.get(alert_id)
+    alert = {alert.get("alert_id"): alert for alert in mock_alerts}.get(alert_id)
     return alert
