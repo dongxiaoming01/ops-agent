@@ -1,7 +1,2 @@
-OPENAI:
-    model-name: qwen-plus
-    api-key: sk-ws-H.PDHPXRX.n4X6.MEUCIQDWyr5hyQbnzrpou_UDLkNzSqLdg_mvogL5kTdi9vSrvAIgfnx_hjcF1pegfPBoMcUCuj2rsHiqNqfLIeh80Hrig34
-    base-url: https://ws-l8utec7sxn8f64db.cn-beijing.maas.aliyuncs.com/compatible-mode/v1
-
-DASHSCOPE_API_KEY: sk-ws-H.PDHPXRX.n4X6.MEUCIQDWyr5hyQbnzrpou_UDLkNzSqLdg_mvogL5kTdi9vSrvAIgfnx_hjcF1pegfPBoMcUCuj2rsHiqNqfLIeh80Hrig34
+DASHSCOPE_API_KEY: xx
 OPS_AGENT_API_KEY: ops-agent-local
